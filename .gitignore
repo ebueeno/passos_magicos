@@ -1,0 +1,29 @@
+# Ambiente e secrets
+.env
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# ChromaDB (dados persistidos; pasta versionada, conteúdo ignorado)
+app/model/chroma_db/*
+!app/model/chroma_db/.gitkeep
+
+# IDE e OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+*.xlsx
