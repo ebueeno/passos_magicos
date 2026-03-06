@@ -1,8 +1,8 @@
 # REGISTRO DE PROGRESSO
 
 ## Status Atual
-- **Fase Atual:** Concluído. Todas as fases do task_plan implementadas.
-- **Última Ação:** Suporte a carregamento CSV e XLSX (src/load_data.py), script run_pipeline.py e testes test_load_data.py.
+- **Fase Atual:** Concluído. RAG opcionais implementados como flags configuráveis (query expansion, context compression, HyDE).
+- **Última Ação:** Implementação das três opcionais como flags env (RAG_QUERY_EXPANSION, RAG_CONTEXT_COMPRESSION, RAG_USE_HYDE); HyDE no treino e retrieval; testes 12/12 passando.
 
 ## Tarefas Concluídas
 - [x] Configuração base do `.cursorrules` e sistema Manus.
@@ -19,6 +19,8 @@
 - [x] Em `tests/`, criar testes unitários para a ingestão de dados e para a API mockando o LLM.
 - [x] Estender RAG e POST /predict com `documentos_usados` (rastreabilidade MLOps); criar `API_REFERENCE.md` (item 4 do edital do Datathon).
 - [x] Suporte a CSV e XLSX: `src/load_data.py` (load_pede_data), `run_pipeline.py` (CLI), openpyxl no requirements; testes em test_load_data.py.
+- [x] RAG avançado: Self-Query (extração de ANO da pergunta + filtro RA obrigatório), busca híbrida (EnsembleRetriever: BM25 + Chroma por aluno), reranking (CrossEncoderReranker + ContextualCompressionRetriever); dependências langchain-community, rank_bm25, sentence-transformers, lark; testes test_rag_engine.py (_build_filter, AlunoNaoEncontradoError).
+- [x] RAG opcionais configuráveis: query expansion (_expand_query, _merge_and_dedupe_docs via RAG_QUERY_EXPANSION), context compression (LLMChainExtractor wrap via RAG_CONTEXT_COMPRESSION), HyDE (treino: _generate_hyde_questions_for_chunk + parent_content; retrieval: _resolve_hyde_content via RAG_USE_HYDE); flag --hyde no run_pipeline.py; testes test_rag_engine.py (helpers + hyde), test_train.py (hyde docs), todos 12/12 passando.
 
 ## Vitória
 **Projeto concluído com sucesso.** Todas as fases do task_plan foram implementadas; a API POST /predict está operacional com RAG, ChromaDB e Langfuse; os testes de preprocessing (limpeza de nulos e contrato) e de API (TestClient + mock do RAG, HTTP 200 e estrutura da resposta) estão aprovados. O sistema está pronto para avaliação da banca.
@@ -42,3 +44,12 @@
 - `run_pipeline.py` — CLI: load_pede_data → clean_and_standardize_pede → build_and_persist_chroma (uso: python run_pipeline.py arquivo.xlsx ou arquivos.csv).
 - `tests/test_load_data.py` — testes para CSV, XLSX (concat abas), extensão inválida e arquivo inexistente.
 - `progress.md` — registro desta fase e declaração de conclusão.
+- `requirements.txt` — langchain-community, rank_bm25, sentence-transformers, lark para RAG avançado.
+- `src/rag_engine.py` — RAG avançado: _build_filter (RA + ANO opcional), _extract_ano_from_query (LLM), _get_docs_for_aluno (Chroma.get), _build_retriever (vetorial ou Ensemble + CrossEncoderReranker), query() com fallback quando filtro ANO não retorna docs.
+- `tests/test_rag_engine.py` — testes unitários para _build_filter e AlunoNaoEncontradoError com Chroma mockado.
+- `.env.example` — adicionadas flags RAG_QUERY_EXPANSION, RAG_CONTEXT_COMPRESSION, RAG_USE_HYDE, RAG_QUERY_EXPANSION_N, RAG_HYDE_QUESTIONS_PER_CHUNK.
+- `src/rag_engine.py` — opcionais: _env_bool/_env_int (leitura de flags), _expand_query (variantes via LLM), _merge_and_dedupe_docs (merge deduplicado), _resolve_hyde_content (mapeamento HyDE→chunk pai), _build_retriever com wrap LLMChainExtractor opcional, query() com branch de query expansion e fallback hyde.
+- `src/train.py` — HyDE: _generate_hyde_questions_for_chunk (LLM por chunk), build_and_persist_chroma(use_hyde, hyde_questions_per_chunk) com iteração sobre cópia de docs para evitar loop infinito.
+- `run_pipeline.py` — flag --hyde para ativar geração HyDE no treino.
+- `tests/test_rag_engine.py` — testes de _merge_and_dedupe_docs, _resolve_hyde_content e mapeamento HyDE na query().
+- `tests/test_train.py` — novo arquivo; testa geração de docs HyDE com RA/ANO/parent_content via mock de _generate_hyde_questions_for_chunk.
