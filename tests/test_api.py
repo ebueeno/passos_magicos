@@ -1,8 +1,10 @@
 """
-Testes da API POST /predict (skill_qa_tester.md).
-Mock do RAG para não consumir tokens OpenAI; valida HTTP 200 e estrutura da resposta.
+Testes da API POST /predict e POST /upload (skill_qa_tester.md).
+Mock do RAG e do ChromaDB/ingest para não consumir OpenAI nem rede.
 """
 
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,6 +15,9 @@ from src.rag_engine import AlunoNaoEncontradoError
 
 RESPOSTA_MOCK = "Resposta mockada para avaliação."
 DOCUMENTOS_MOCK = ["Chunk 2023: INDE Ágata, IDA 6.5.", "Chunk 2024: IAA em evolução."]
+
+# CSV mínimo para POST /upload (colunas que process_uploaded_file mapeia)
+CSV_MINIMO = b"RA,Idade,INDE 22\n1,14,5.5\n"
 
 
 @pytest.fixture
@@ -69,3 +74,47 @@ def test_predict_valida_body(client):
 
     response = client.post("/predict", json={"pergunta": "Só pergunta"})
     assert response.status_code == 422
+
+
+# --- POST /upload (mock de ingest_dataframe_to_chroma para não bater no ChromaDB) ---
+
+
+@patch("app.routes.ingest_dataframe_to_chroma", return_value=1)
+@patch("app.routes.UPLOAD_DIR", new_callable=lambda: Path(tempfile.mkdtemp()))
+def test_upload_retorna_200_e_estrutura_correta(mock_upload_dir, mock_ingest, client):
+    """POST /upload com CSV válido retorna 200, message e rows_ingested (mock do ChromaDB)."""
+    response = client.post(
+        "/upload",
+        files={"file": ("planilha.csv", CSV_MINIMO, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Upload e ingestão concluídos."
+    assert "rows_ingested" in data
+    assert data["rows_ingested"] == 1
+    mock_ingest.assert_called_once()
+
+
+def test_upload_retorna_422_extensao_invalida(client):
+    """POST /upload com extensão não permitida (.txt) retorna 422."""
+    response = client.post(
+        "/upload",
+        files={"file": ("arquivo.txt", b"conteudo", "text/plain")},
+    )
+    assert response.status_code == 422
+    data = response.json()
+    assert "detail" in data
+    assert "Extensão inválida" in data["detail"] or "extensão" in data["detail"].lower()
+
+
+@patch("app.routes.ingest_dataframe_to_chroma", side_effect=Exception("Chroma indisponível"))
+@patch("app.routes.UPLOAD_DIR", new_callable=lambda: Path(tempfile.mkdtemp()))
+def test_upload_retorna_500_quando_ingestao_falha(mock_upload_dir, mock_ingest, client):
+    """POST /upload retorna 500 quando ingest_dataframe_to_chroma levanta exceção."""
+    response = client.post(
+        "/upload",
+        files={"file": ("planilha.csv", CSV_MINIMO, "text/csv")},
+    )
+    assert response.status_code == 500
+    data = response.json()
+    assert "detail" in data

@@ -2,9 +2,11 @@
 
 ## Status Atual
 - **Fase Atual:** Concluído. Infraestrutura de produção LLMOps do Datathon finalizada (Step 4).
-- **Última Ação:** Correção "Failed to export span batch 404": servidor Langfuse v2 não expõe endpoint OTEL; SDK 3.x usa OTEL e retorna 404. Fixado langfuse em requirements.txt para >=2.0.0,<3.0.0 (SDK 2.x compatível com servidor v2); findings.md e progress.md atualizados.
+- **Última Ação:** Refatoração do System Prompt (Step 2): motor RAG em src/rag_engine.py atualizado para respostas dinâmicas — novo prompt (Psicopedagogo Sênior, REGRAS DE OURO por intenção, risco de defasagem orgânico no primeiro parágrafo, sem formatos robóticos); temperatura 0.3; regras de negócio PEDE mantidas. progress.md atualizado.
 
 ## Tarefas Concluídas
+- [x] Refatoração System Prompt (Step 2): src/rag_engine.py — System Prompt substituído por texto que prioriza intenção da pergunta (IAA/IPS emocional, IDA/IEG notas, ingressantes acolhimento), risco de defasagem (IAN) orgânico no primeiro parágrafo, proibição de formatos robóticos; ChatOpenAI temperature=0.3; regras de negócio PEDE preservadas. Motor RAG refatorado para respostas dinâmicas.
+- [x] Memória Viva — Prompting Dinâmico: diagnóstico de respostas do LLM robotizadas/padronizadas por templates fixos no System Prompt; regra "Prompting Dinâmico e Flexível" registrada em findings.md §4 (Arquitetura LLMOps): Risco de Defasagem como contexto inicial orgânico; corpo da resposta DEVE se adaptar à intenção da pergunta (psicológica, acadêmica, acolhimento).
 - [x] Configuração base do `.cursorrules` e sistema Manus.
 - [x] Mapeamento das regras de negócio do PEDE.
 - [x] Criar estrutura modular (`app/`, `src/`, `tests/`) e pasta `app/model/chroma_db`.
@@ -32,9 +34,12 @@
 - [x] Langfuse "pending" e métricas: em `.env.example`, documentado que LANGFUSE_PUBLIC_KEY e LANGFUSE_SECRET_KEY são obrigatórios para envio de traces (senão status fica pending), reinício da API após preencher e uso da aba Traces após POST /predict; progress.md atualizado.
 - [x] Garantir uso das chaves Langfuse: `src/rag_engine.py` lê LANGFUSE_PUBLIC_KEY e LANGFUSE_SECRET_KEY, inicializa Langfuse(public_key, secret_key, base_url) antes de CallbackHandler() quando as chaves existem, log de diagnóstico; `docker-compose.yml` injeta LANGFUSE_PUBLIC_KEY e LANGFUSE_SECRET_KEY no serviço api via ${LANGFUSE_PUBLIC_KEY}/${LANGFUSE_SECRET_KEY}; progress.md atualizado.
 - [x] Correção 404 ao exportar spans para Langfuse: SDK Python 3.x usa OTEL; servidor `langfuse/langfuse:2` não tem endpoint OTEL. requirements.txt alterado para `langfuse>=2.0.0,<3.0.0`; findings.md documentado; progress.md atualizado.
+- [x] Diretriz edital Risco de Defasagem Escolar: System Prompt em src/rag_engine.py atualizado para que a primeira frase da resposta seja obrigatoriamente a estimativa do risco (IAN 10=BAIXO, 5=MODERADO, ≤2.5=ALTO), seguida de justificativa (Destaques, IPS, IEG) e plano de ação; progress.md atualizado.
+- [x] Engenharia de Qualidade (edital >80% cobertura): pytest, pytest-cov e httpx garantidos em requirements.txt; test_preprocessing.py com teste consolidado (NaNs, idade corrompida, vírgula 5,60); test_api.py com mock de get_rag e ingest_dataframe_to_chroma para /predict e /upload (sem OpenAI/ChromaDB); README.md com instruções para pytest --cov=src --cov=app; progress.md atualizado.
+- [x] Ajustes finais de edital (Joblib e Documentação): em src/preprocessing.py, lógica que ao limpar os dados salva o contrato (colunas padronizadas) com joblib.dump() em app/model/contrato_dados.joblib; joblib adicionado ao requirements.txt; README.md sobrescrito com as 5 seções exigidas pela FIAP (1) Visão Geral do Projeto, 2) Estrutura do Projeto, 3) Instruções de Deploy, 4) Exemplos de Chamadas à API, 5) Etapas do Pipeline de Machine Learning); progress.md atualizado.
 
 ## Vitória
-**Projeto concluído com sucesso.** Todas as fases do task_plan foram implementadas; a API POST /predict está operacional com RAG, ChromaDB e Langfuse; os testes de preprocessing (limpeza de nulos e contrato) e de API (TestClient + mock do RAG, HTTP 200 e estrutura da resposta) estão aprovados. O sistema está pronto para avaliação da banca.
+**Projeto finalizado e pronto para entrega.** Todas as fases do task_plan e exigências do edital foram cumpridas: API POST /predict e POST /upload operacionais com RAG, ChromaDB e Langfuse; serialização do contrato com joblib; README com as 5 seções FIAP; testes e cobertura >80%; diretriz de Risco de Defasagem Escolar (IAN) no System Prompt. O sistema está pronto para avaliação da banca.
 
 ## Arquivos Criados/Editados
 - `requirements.txt` — dependências do projeto (incl. langchain-core, langchain-chroma, pytest-cov).
@@ -45,10 +50,11 @@
 - `src/preprocessing.py` — clean_and_standardize_pede (contrato PEDE, decimais BR, FASE string, duplicadas, nulos).
 - `src/feature_engineering.py` — build_semantic_chunk (template narrativo PEDE para embeddings/RAG).
 - `src/train.py` — build_and_persist_chroma (Document com RA/ANO, OpenAIEmbeddings, Chroma em app/model/chroma_db).
-- `src/rag_engine.py` — classe RAG (retriever filter RA, system prompt Psicopedagogo, gpt-4o-mini, Langfuse no invoke); `query()` retorna `(resposta, documentos_usados)`.
+- `src/rag_engine.py` — classe RAG (retriever filter RA, system prompt Psicopedagogo com diretriz Risco de Defasagem Escolar/IAN, gpt-4o-mini, Langfuse no invoke); `query()` retorna `(resposta, documentos_usados)`.
 - `app/__init__.py`, `app/main.py`, `app/routes.py` — API FastAPI e POST /predict (PredictRequest, PredictResponse com resposta + documentos_usados, 404 para aluno não encontrado).
 - `tests/test_preprocessing.py` — testes de nulos (0.0 e "Sem registro no período") e colunas oficiais.
-- `tests/test_api.py` — TestClient, mock de get_rag, HTTP 200, estrutura da resposta (resposta e documentos_usados), 404 e 422.
+- `tests/test_api.py` — TestClient, mock de get_rag e ingest_dataframe_to_chroma; /predict (200, 404, 422) e /upload (200, 422, 500); sem OpenAI/ChromaDB.
+- `README.md` — instruções de testes e cobertura (pytest --cov=src --cov=app) para a banca.
 - `API_REFERENCE.md` — documentação oficial da API (item 4 do edital: visão geral, URL/autenticação, POST /predict, schemas, exemplos cURL/Python/Postman, códigos HTTP).
 - `requirements.txt` — adicionado openpyxl para leitura de Excel.
 - `src/load_data.py` — load_pede_data(path_or_paths): carrega .csv (decimal=,) ou .xlsx/.xls (todas as abas), retorna DataFrame bruto.

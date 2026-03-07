@@ -46,3 +46,6 @@ O contrato está blindado na função `process_uploaded_file` (src/preprocessing
 A API terá um endpoint `POST /upload` que recebe planilhas, salva no volume `/app/data`, executa a padronização do Data Contract e faz o upsert automático no ChromaDB via HTTP.
 
 **Falha de Dependência (Healthcheck):** Em orquestrações complexas, se um serviço (como a API) exige `condition: service_healthy` de outro serviço (como o Langfuse), o serviço alvo **DEVE** obrigatoriamente possuir um bloco `healthcheck`. Sem isso, a arquitetura trava na subida. Para o **Langfuse v2** (imagem Node): usar `curl -f -s http://localhost:3000/` no healthcheck (a imagem pode não ter `wget`); definir `start_period` generoso (ex.: 120s) pois as migrations na inicialização levam cerca de 2–3 minutos; em alguns ambientes é necessário `HOSTNAME=0.0.0.0` para o servidor aceitar conexões.
+
+**Prompting Dinâmico e Flexível**  
+O System Prompt não deve forçar templates de resposta fixos (ex.: listas engessadas). O cálculo do "Risco de Defasagem" (exigido pelo edital) deve ser tecido de forma orgânica no texto como um contexto inicial, mas o corpo principal da resposta **DEVE** se adaptar estritamente à intenção da pergunta do usuário (psicológica, acadêmica, acolhimento, etc.).

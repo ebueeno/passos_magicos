@@ -226,3 +226,35 @@ def test_process_uploaded_file_remove_duplicatas():
         assert list(out.columns).count("DESTAQUE_IPV") == 1
     finally:
         Path(path).unlink(missing_ok=True)
+
+
+def test_process_uploaded_file_consolidado_nans_idade_corrompida_virgula():
+    """
+    Um único CSV com NaNs, idade corrompida (1/7/1900) e decimal com vírgula (5,60).
+    Valida que a saída é limpa: colunas oficiais, numéricos sem NaN, idade->0, INDE 5,60->5.6.
+    """
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
+        f.write('RA,Idade,INDE 22\n')
+        f.write('1,"1/7/1900","5,60"\n')
+        f.write('2,14,\n')
+        path = f.name
+    try:
+        out = process_uploaded_file(path)
+        assert list(out.columns) == COLUNAS_OFICIAIS
+        assert out.shape[0] == 2
+        # Primeira linha: idade corrompida -> 0, vírgula 5,60 -> 5.6
+        assert out["IDADE"].iloc[0] == 0
+        assert out["INDE"].iloc[0] == 5.6
+        # Segunda linha: idade 14, INDE vazio -> 0.0
+        assert out["IDADE"].iloc[1] == 14
+        assert out["INDE"].iloc[1] == 0.0
+        # Numéricos sem NaN
+        for col in COLUNAS_NUMERICAS:
+            if col in out.columns:
+                assert not out[col].isna().any(), f"Não deveria haver NaN em {col}"
+        # Qualitativos sem NaN (preenchidos com TEXTO_NULOS onde vazio)
+        for col in COLUNAS_QUALITATIVAS:
+            if col in out.columns:
+                assert not out[col].isna().any(), f"Não deveria haver NaN em {col}"
+    finally:
+        Path(path).unlink(missing_ok=True)

@@ -2,11 +2,18 @@
 Ingestão e padronização dos dados PEDE (Passos Mágicos).
 Data Contract: colunas oficiais 2022/2023/2024, nulos e decimais BR.
 Leitura recomendada: pd.read_csv(..., decimal=',')
+Serialização: contrato de dados salvo com joblib em app/model/contrato_dados.joblib (edital).
 """
 
+from pathlib import Path
+
+import joblib
 import pandas as pd
 
 from src.load_data import load_pede_data
+
+# Caminho para serialização do contrato (edital: pickle/joblib)
+CONTRATO_JOBLIB_PATH = Path(__file__).resolve().parent.parent / "app" / "model" / "contrato_dados.joblib"
 
 # --- Contrato de dados (skill_data_engineer.md) ---
 COLUNAS_OFICIAIS = [
@@ -104,6 +111,18 @@ MAPEAMENTO_VARIANTES = {
 TEXTO_NULOS = "Sem registro no período"
 
 
+def _save_contrato_joblib() -> None:
+    """Serializa o contrato de dados (colunas padronizadas) com joblib (requisito edital)."""
+    contrato = {
+        "colunas_oficiais": COLUNAS_OFICIAIS,
+        "colunas_numericas": COLUNAS_NUMERICAS,
+        "colunas_qualitativas": COLUNAS_QUALITATIVAS,
+        "texto_nulos": TEXTO_NULOS,
+    }
+    CONTRATO_JOBLIB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(contrato, CONTRATO_JOBLIB_PATH)
+
+
 def _coerce_decimal_br(series: pd.Series) -> pd.Series:
     """Converte coluna com decimal vírgula (BR) para numérico."""
     if series.dtype in ("float64", "Int64", "int64"):
@@ -163,6 +182,9 @@ def clean_and_standardize_pede(df: pd.DataFrame) -> pd.DataFrame:
     for col in COLUNAS_QUALITATIVAS:
         if col in df.columns:
             df[col] = df[col].fillna(TEXTO_NULOS).astype(str)
+
+    # 8. Serialização do contrato com joblib (edital: pickle/joblib)
+    _save_contrato_joblib()
 
     return df
 
