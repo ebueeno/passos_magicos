@@ -6,14 +6,24 @@ Opcionais: query expansion, context compression (LLMChainExtractor), HyDE (pergu
 
 from __future__ import annotations
 
+import logging
 import os
 
+import chromadb
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.retrievers import BaseRetriever
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langfuse.langchain import CallbackHandler
+
+try:
+    from langfuse import Langfuse
+    from langfuse.callback import CallbackHandler
+    _HAS_LANGFUSE = True
+except ImportError:
+    Langfuse = None
+    CallbackHandler = None
+    _HAS_LANGFUSE = False
 
 # Busca híbrida e reranking (opcional por dependência)
 try:
@@ -165,11 +175,20 @@ class RAG:
 
     def __init__(self) -> None:
         self._embedding = OpenAIEmbeddings()
-        self._vectorstore = Chroma(
-            persist_directory=PERSIST_DIR,
-            embedding_function=self._embedding,
-            collection_name=COLLECTION_NAME,
-        )
+        chroma_host = os.getenv("CHROMA_HOST")
+        if chroma_host:
+            client = chromadb.HttpClient(host=chroma_host, port=8000)
+            self._vectorstore = Chroma(
+                client=client,
+                collection_name=COLLECTION_NAME,
+                embedding_function=self._embedding,
+            )
+        else:
+            self._vectorstore = Chroma(
+                persist_directory=PERSIST_DIR,
+                embedding_function=self._embedding,
+                collection_name=COLLECTION_NAME,
+            )
         self._llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         self._prompt = ChatPromptTemplate.from_messages(
             [
@@ -181,7 +200,37 @@ class RAG:
             ]
         )
         self._chain = self._prompt | self._llm
-        self._langfuse_handler = CallbackHandler()
+        langfuse_host = os.getenv("LANGFUSE_HOST")
+        langfuse_base_url = os.getenv("LANGFUSE_BASE_URL")
+        langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+        langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+        if langfuse_host and not langfuse_base_url:
+            os.environ.setdefault("LANGFUSE_BASE_URL", langfuse_host)
+        langfuse_base_url = os.getenv("LANGFUSE_BASE_URL")
+        langfuse_enabled = bool(langfuse_host or langfuse_base_url) and _HAS_LANGFUSE
+        if langfuse_enabled and langfuse_public_key and langfuse_secret_key:
+            try:
+                _host = langfuse_base_url or "https://cloud.langfuse.com"
+                Langfuse(
+                    public_key=langfuse_public_key,
+                    secret_key=langfuse_secret_key,
+                    host=_host,
+                )
+                self._langfuse_handler = CallbackHandler(
+                    public_key=langfuse_public_key,
+                    secret_key=langfuse_secret_key,
+                    host=_host,
+                )
+                logging.getLogger(__name__).info(
+                    "Langfuse tracing enabled (host=%s, public_key=...%s)",
+                    _host,
+                    langfuse_public_key[-4:] if len(langfuse_public_key) >= 4 else "****",
+                )
+            except Exception as exc:
+                logging.getLogger(__name__).warning("Langfuse init failed: %s — tracing disabled", exc)
+                self._langfuse_handler = None
+        else:
+            self._langfuse_handler = None
         self._use_advanced = _HAS_ADVANCED_RAG
 
     def _get_docs_for_aluno(self, aluno_id: str, filtro: dict) -> list[Document]:
@@ -255,7 +304,7 @@ class RAG:
         AlunoNaoEncontradoError
             Se não houver documentos para o RA no banco.
         """
-        config = {"callbacks": [self._langfuse_handler]}
+        config = {"callbacks": [self._langfuse_handler]} if self._langfuse_handler else {}
 
         # Self-Query: extrair ano da pergunta (opcional) e montar filtro com RA obrigatório
         ano = _extract_ano_from_query(self._llm, pergunta, config)

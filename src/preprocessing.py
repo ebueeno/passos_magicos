@@ -6,9 +6,12 @@ Leitura recomendada: pd.read_csv(..., decimal=',')
 
 import pandas as pd
 
+from src.load_data import load_pede_data
+
 # --- Contrato de dados (skill_data_engineer.md) ---
 COLUNAS_OFICIAIS = [
     "RA",
+    "NOME_ANONIMIZADO",
     "ANO_PESQUISA",
     "FASE",
     "TURMA",
@@ -24,6 +27,9 @@ COLUNAS_OFICIAIS = [
     "IPP",
     "IPV",
     "ATINGIU_PV",
+    "NOTA_MAT",
+    "NOTA_PORT",
+    "NOTA_ING",
     "REC_PSICOLOGIA",
     "REC_AVALIACAO",
     "DESTAQUE_IEG",
@@ -42,10 +48,14 @@ COLUNAS_NUMERICAS = [
     "IPP",
     "IPV",
     "ATINGIU_PV",
+    "NOTA_MAT",
+    "NOTA_PORT",
+    "NOTA_ING",
 ]
 
 COLUNAS_QUALITATIVAS = [
     "RA",
+    "NOME_ANONIMIZADO",
     "ANO_PESQUISA",
     "FASE",
     "TURMA",
@@ -57,6 +67,21 @@ COLUNAS_QUALITATIVAS = [
     "DESTAQUE_IDA",
     "DESTAQUE_IPV",
 ]
+
+# Mapeamento dinâmico: nome padrão -> primeira coluna encontrada entre candidatos
+# (variações históricas 2022/2023/2024)
+MAPEAMENTO_DINAMICO = {
+    "NOME_ANONIMIZADO": ["Nome", "Nome Anonimizado"],
+    "IDADE": ["Idade 22", "Idade"],
+    "INSTITUICAO_ENSINO": ["Instituição de ensino", "Escola", "Instituição de Ensino", "Instituicao de Ensino", "Instituição Ensino"],
+    "PEDRA": ["Pedra 20", "Pedra 21", "Pedra 22", "Pedra 23", "Pedra 2024", "Pedra"],
+    "INDE": ["INDE 22", "INDE 2023", "INDE 2024"],
+    "NOTA_MAT": ["Matem", "Mat"],
+    "NOTA_PORT": ["Portug", "Por"],
+    "NOTA_ING": ["Inglês", "Ing"],
+    "REC_PSICOLOGIA": ["Rec Psicologia"],
+    "REC_AVALIACAO": ["Rec Av1"],
+}
 
 # Variantes de nomes nas planilhas 2022, 2023, 2024 -> nome oficial
 MAPEAMENTO_VARIANTES = {
@@ -138,5 +163,74 @@ def clean_and_standardize_pede(df: pd.DataFrame) -> pd.DataFrame:
     for col in COLUNAS_QUALITATIVAS:
         if col in df.columns:
             df[col] = df[col].fillna(TEXTO_NULOS).astype(str)
+
+    return df
+
+
+def _build_dynamic_rename(df: pd.DataFrame) -> dict:
+    """Constrói dicionário de renomeação: primeira coluna encontrada por nome padrão."""
+    rename = {}
+    for std_name, candidates in MAPEAMENTO_DINAMICO.items():
+        for cand in candidates:
+            if cand in df.columns:
+                rename[cand] = std_name
+                break
+    return rename
+
+
+def process_uploaded_file(file_path: str) -> pd.DataFrame:
+    """
+    Carrega planilha (.csv ou .xlsx) e aplica o Data Contract completo.
+
+    Ordem: remoção de colunas duplicadas, mapeamento dinâmico de variantes
+    históricas, garantia de IPP (0.0 se ausente, ex.: 2022), decimais BR,
+    correção de idade corrompida (datas 1/7/1900 -> 0), então clean_and_standardize_pede.
+
+    Parameters
+    ----------
+    file_path : str
+        Caminho para arquivo .csv ou .xlsx/.xls.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame com COLUNAS_OFICIAIS, nulos tratados, IDADE como int.
+    """
+    df = load_pede_data(file_path)
+    if df.empty:
+        return pd.DataFrame(columns=COLUNAS_OFICIAIS)
+
+    # 1. Remover colunas duplicadas (findings: Destaque IPV, Ativo/Inativo)
+    df = df.loc[:, ~df.columns.duplicated(keep="first")].copy()
+
+    # 2. Mapeamento dinâmico (variações por ano)
+    rename = _build_dynamic_rename(df)
+    df = df.rename(columns=rename)
+    # Variantes fixas (Destaque IPV, Ano Pesquisa, etc.)
+    rename_var = {k: v for k, v in MAPEAMENTO_VARIANTES.items() if k in df.columns}
+    df = df.rename(columns=rename_var)
+
+    # 3. IPP ausente (base 2022)
+    if "IPP" not in df.columns:
+        df["IPP"] = 0.0
+
+    # 4. Decimais BR: indicadores numéricos
+    for col in COLUNAS_NUMERICAS:
+        if col not in df.columns:
+            continue
+        if df[col].dtype == object or df[col].dtype.name == "string":
+            df[col] = _coerce_decimal_br(df[col])
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
+    # 5. Idade corrompida (findings: 1/7/1900 em 2023) -> coerce, fill 0, int
+    if "IDADE" in df.columns:
+        df["IDADE"] = pd.to_numeric(df["IDADE"], errors="coerce").fillna(0).astype(int)
+
+    # 6. Contrato e nulos
+    df = clean_and_standardize_pede(df)
+
+    # 7. Garantir IDADE como int na saída (clean preenche como float)
+    if "IDADE" in df.columns:
+        df["IDADE"] = pd.to_numeric(df["IDADE"], errors="coerce").fillna(0).astype(int)
 
     return df

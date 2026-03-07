@@ -1,8 +1,8 @@
 # REGISTRO DE PROGRESSO
 
 ## Status Atual
-- **Fase Atual:** Concluído. RAG opcionais implementados como flags configuráveis (query expansion, context compression, HyDE).
-- **Última Ação:** Implementação das três opcionais como flags env (RAG_QUERY_EXPANSION, RAG_CONTEXT_COMPRESSION, RAG_USE_HYDE); HyDE no treino e retrieval; testes 12/12 passando.
+- **Fase Atual:** Concluído. Infraestrutura de produção LLMOps do Datathon finalizada (Step 4).
+- **Última Ação:** Correção "Failed to export span batch 404": servidor Langfuse v2 não expõe endpoint OTEL; SDK 3.x usa OTEL e retorna 404. Fixado langfuse em requirements.txt para >=2.0.0,<3.0.0 (SDK 2.x compatível com servidor v2); findings.md e progress.md atualizados.
 
 ## Tarefas Concluídas
 - [x] Configuração base do `.cursorrules` e sistema Manus.
@@ -21,6 +21,17 @@
 - [x] Suporte a CSV e XLSX: `src/load_data.py` (load_pede_data), `run_pipeline.py` (CLI), openpyxl no requirements; testes em test_load_data.py.
 - [x] RAG avançado: Self-Query (extração de ANO da pergunta + filtro RA obrigatório), busca híbrida (EnsembleRetriever: BM25 + Chroma por aluno), reranking (CrossEncoderReranker + ContextualCompressionRetriever); dependências langchain-community, rank_bm25, sentence-transformers, lark; testes test_rag_engine.py (_build_filter, AlunoNaoEncontradoError).
 - [x] RAG opcionais configuráveis: query expansion (_expand_query, _merge_and_dedupe_docs via RAG_QUERY_EXPANSION), context compression (LLMChainExtractor wrap via RAG_CONTEXT_COMPRESSION), HyDE (treino: _generate_hyde_questions_for_chunk + parent_content; retrieval: _resolve_hyde_content via RAG_USE_HYDE); flag --hyde no run_pipeline.py; testes test_rag_engine.py (helpers + hyde), test_train.py (hyde docs), todos 12/12 passando.
+- [x] findings.md: seção "Anomalias nos Dados (Pandas)" atualizada com colunas dinâmicas (mapeamento obrigatório), ausência IPP 2022 (df.get), vírgula/datas (coerce + fill 0), duplicatas (df.columns.duplicated()), FASE string.
+- [x] Definição do pipeline de Ingestão em Lote e da arquitetura LLMOps de produção: orquestração Docker (api, chromadb, langfuse-server, langfuse-db em rag_network), fluxo POST /upload → /app/data → Data Contract → upsert ChromaDB via HTTP; registrado em findings.md §4.
+- [x] Step 2 Orquestração Docker e LLMOps: python-multipart e openpyxl no requirements.txt; docker-compose.yml (rede rag_network, langfuse-db com healthcheck pg_isready, langfuse-server com DATABASE_URL e depends healthy, chromadb com IS_PERSISTENT e healthcheck heartbeat, api com CHROMA_HOST/LANGFUSE_HOST e volume ./data:/app/data); docker-compose.prod.yml (api --workers 4 sem --reload, restart: always em todos); diretório data/ e .env.example completo (CHROMA_HOST, LANGFUSE_HOST).
+- [x] Step 3 Refatoração Data Contract: função `process_uploaded_file(file_path)` em `src/preprocessing.py` — carrega planilha (.csv/.xlsx), remove colunas duplicadas, mapeamento dinâmico (NOME_ANONIMIZADO, IDADE, INSTITUICAO_ENSINO, PEDRA, INDE, NOTA_MAT/PORT/ING, REC_PSICOLOGIA/AVALIACAO), blindagem IPP (0.0 se ausente, ex.: 2022), decimais BR e correção de idade corrompida (1/7/1900 → 0 int); contrato estendido com NOTA_MAT, NOTA_PORT, NOTA_ING e NOME_ANONIMIZADO; testes em test_preprocessing.py (mapeamento, IPP ausente, decimais/vírgula, idade corrompida, duplicatas).
+- [x] Step 4 (Final) RAG Server-Side e API de Upload: `src/train.py` — cliente Chroma HTTP (`chromadb.HttpClient(host=CHROMA_HOST, port=8000)`), função `ingest_dataframe_to_chroma(df)` com metadata em tipos nativos (RA, ANO, IDADE, FASE) e upsert via Chroma(client=...). `app/routes.py` — POST /upload (UploadFile → salvar em /app/data → process_uploaded_file → ingest_dataframe_to_chroma, extensões .csv/.xlsx/.xls); POST /predict mantido. `src/rag_engine.py` — RAG usa VectorStore via HttpClient quando CHROMA_HOST definido; CallbackHandler Langfuse com LANGFUSE_HOST para rastreamento em tempo real (tokens, groundedness). **Conclusão da infraestrutura de produção LLMOps do Datathon.**
+- [x] Bug de dependência do Healthcheck do Langfuse corrigido: adicionado `healthcheck` ao serviço `langfuse-server` no `docker-compose.yml` (wget -q --spider em http://localhost:3000), garantindo a subida segura da API apenas após a inicialização completa do serviço de observabilidade.
+- [x] Correção TypeError no CallbackHandler do Langfuse: em `src/rag_engine.py`, remoção do argumento `host` (não suportado no Langfuse 2.x), mapeamento de `LANGFUSE_HOST` para `LANGFUSE_BASE_URL`, criação de `CallbackHandler()` sem argumentos quando habilitado e `config["callbacks"]` apenas se handler não for None; findings.md e .env.example atualizados.
+- [x] Correção langfuse-server unhealthy: em `docker-compose.yml`, healthcheck do langfuse-server passou a usar `curl -f -s http://localhost:3000/` (imagem Node pode não ter wget), start_period 120s, interval 15s, retries 10 e HOSTNAME=0.0.0.0; progress.md e findings.md atualizados.
+- [x] Langfuse "pending" e métricas: em `.env.example`, documentado que LANGFUSE_PUBLIC_KEY e LANGFUSE_SECRET_KEY são obrigatórios para envio de traces (senão status fica pending), reinício da API após preencher e uso da aba Traces após POST /predict; progress.md atualizado.
+- [x] Garantir uso das chaves Langfuse: `src/rag_engine.py` lê LANGFUSE_PUBLIC_KEY e LANGFUSE_SECRET_KEY, inicializa Langfuse(public_key, secret_key, base_url) antes de CallbackHandler() quando as chaves existem, log de diagnóstico; `docker-compose.yml` injeta LANGFUSE_PUBLIC_KEY e LANGFUSE_SECRET_KEY no serviço api via ${LANGFUSE_PUBLIC_KEY}/${LANGFUSE_SECRET_KEY}; progress.md atualizado.
+- [x] Correção 404 ao exportar spans para Langfuse: SDK Python 3.x usa OTEL; servidor `langfuse/langfuse:2` não tem endpoint OTEL. requirements.txt alterado para `langfuse>=2.0.0,<3.0.0`; findings.md documentado; progress.md atualizado.
 
 ## Vitória
 **Projeto concluído com sucesso.** Todas as fases do task_plan foram implementadas; a API POST /predict está operacional com RAG, ChromaDB e Langfuse; os testes de preprocessing (limpeza de nulos e contrato) e de API (TestClient + mock do RAG, HTTP 200 e estrutura da resposta) estão aprovados. O sistema está pronto para avaliação da banca.
@@ -53,3 +64,13 @@
 - `run_pipeline.py` — flag --hyde para ativar geração HyDE no treino.
 - `tests/test_rag_engine.py` — testes de _merge_and_dedupe_docs, _resolve_hyde_content e mapeamento HyDE na query().
 - `tests/test_train.py` — novo arquivo; testa geração de docs HyDE com RA/ANO/parent_content via mock de _generate_hyde_questions_for_chunk.
+- `requirements.txt` — adicionado python-multipart para upload de arquivos no FastAPI.
+- `docker-compose.yml` — criado: rede rag_network; serviços langfuse-db (postgres:15, volume postgres-data, healthcheck pg_isready), langfuse-server (langfuse/langfuse:latest, 3000:3000, DATABASE_URL, depends langfuse-db healthy), chromadb (chromadb/chroma:latest, 8000:8000, volume chroma-data, IS_PERSISTENT, healthcheck heartbeat), api (build ., 8001:8000, volume ./data:/app/data, CHROMA_HOST/LANGFUSE_HOST, uvicorn --reload, depends chromadb e langfuse-server healthy).
+- `docker-compose.prod.yml` — override: api comando --workers 4 sem --reload; restart: always em todos os serviços; volume /app/data mantido.
+- `data/.gitkeep` — diretório data/ na raiz para persistir uploads (bind mount no Docker).
+- `.env.example` — completo com CHROMA_HOST, LANGFUSE_HOST e comentário DATABASE_URL para referência do Langfuse.
+- `src/preprocessing.py` (Step 3) — process_uploaded_file (load_pede_data → dedup → MAPEAMENTO_DINAMICO + MAPEAMENTO_VARIANTES → IPP 0.0 → decimais BR → IDADE coerce int → clean_and_standardize_pede); COLUNAS_OFICIAIS/NUMERICAS/QUALITATIVAS estendidas com NOME_ANONIMIZADO e NOTA_MAT/PORT/ING; MAPEAMENTO_DINAMICO (variações por ano).
+- `tests/test_preprocessing.py` (Step 3) — fixtures com novas colunas do contrato; testes process_uploaded_file: mapeamento dinâmico, IPP ausente, decimais BR e idade corrompida, vírgula decimal, remoção de duplicatas.
+- `src/train.py` (Step 4) — _get_chroma_http_client(), ingest_dataframe_to_chroma(df) com cast RA/ANO/IDADE/FASE para tipos nativos e add_documents no Chroma HTTP.
+- `src/rag_engine.py` (Step 4) — RAG.__init__: Chroma com client=chromadb.HttpClient quando CHROMA_HOST; CallbackHandler(host=LANGFUSE_HOST) quando presente.
+- `app/routes.py` (Step 4) — POST /upload (UploadFile, UPLOAD_DIR=/app/data, process_uploaded_file, ingest_dataframe_to_chroma, UploadResponse); POST /predict inalterado.

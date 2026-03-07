@@ -7,6 +7,7 @@ Opcional: HyDE — gera perguntas hipotéticas por chunk e indexa com parent_con
 import os
 from pathlib import Path
 
+import chromadb
 import pandas as pd
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
@@ -33,6 +34,54 @@ def _env_int(key: str, default: int) -> int:
 
 
 HYDE_QUESTIONS_PER_CHUNK = max(1, min(5, _env_int("RAG_HYDE_QUESTIONS_PER_CHUNK", 2)))
+
+
+def _get_chroma_http_client() -> chromadb.HttpClient:
+    """Cliente HTTP Chroma para ingestão server-side (upload)."""
+    return chromadb.HttpClient(
+        host=os.getenv("CHROMA_HOST", "chromadb"),
+        port=8000,
+    )
+
+
+def ingest_dataframe_to_chroma(df: pd.DataFrame) -> int:
+    """
+    Transforma o DataFrame processado em chunks semânticos e faz upsert no ChromaDB via HTTP.
+    Usado pelo endpoint POST /upload. Metadata em tipos nativos Python (evita numpy.int64 na API Chroma).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame já padronizado (saída de process_uploaded_file).
+
+    Returns
+    -------
+    int
+        Número de documentos adicionados ao Chroma (0 se df vazio).
+    """
+    if df is None or df.empty:
+        return 0
+    documents: list[Document] = []
+    for _, row in df.iterrows():
+        text = build_semantic_chunk(row)
+        metadata = {
+            "RA": str(row["RA"]),
+            "ANO": str(row.get("ANO_PESQUISA", "")),
+            "IDADE": int(row.get("IDADE", 0)),
+            "FASE": str(row.get("FASE", "")),
+        }
+        documents.append(Document(page_content=text, metadata=metadata))
+    if not documents:
+        return 0
+    client = _get_chroma_http_client()
+    embedding = OpenAIEmbeddings()
+    vectorstore = Chroma(
+        client=client,
+        collection_name=COLLECTION_NAME,
+        embedding_function=embedding,
+    )
+    vectorstore.add_documents(documents)
+    return len(documents)
 
 
 def _ensure_persist_dir() -> None:
