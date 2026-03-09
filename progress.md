@@ -1,8 +1,8 @@
 # REGISTRO DE PROGRESSO
 
 ## Status Atual
-- **Fase Atual:** Concluído. Infraestrutura de produção LLMOps do Datathon finalizada (Step 4).
-- **Última Ação:** Refatoração do System Prompt (Step 2): motor RAG em src/rag_engine.py atualizado para respostas dinâmicas — novo prompt (Psicopedagogo Sênior, REGRAS DE OURO por intenção, risco de defasagem orgânico no primeiro parágrafo, sem formatos robóticos); temperatura 0.3; regras de negócio PEDE mantidas. progress.md atualizado.
+- **Fase Atual:** Concluída. Deploy GCP via CLI adicionado ao projeto.
+- **Última Ação:** Deploy GCP implementado: `.gcloudignore`, `docker-compose.gcp.yml` (secrets hardened, ChromaDB bound a 127.0.0.1, NEXTAUTH_URL com IP real), `scripts/deploy_gcp.sh` (8 etapas: VM e2-standard-2, firewall, tar+scp, .env via SSH, docker compose up -d --build, polling API, ingestão opcional), `DEPLOY.md` (guia completo), README.md atualizado com seção GCP.
 
 ## Tarefas Concluídas
 - [x] Refatoração System Prompt (Step 2): src/rag_engine.py — System Prompt substituído por texto que prioriza intenção da pergunta (IAA/IPS emocional, IDA/IEG notas, ingressantes acolhimento), risco de defasagem (IAN) orgânico no primeiro parágrafo, proibição de formatos robóticos; ChatOpenAI temperature=0.3; regras de negócio PEDE preservadas. Motor RAG refatorado para respostas dinâmicas.
@@ -39,7 +39,9 @@
 - [x] Ajustes finais de edital (Joblib e Documentação): em src/preprocessing.py, lógica que ao limpar os dados salva o contrato (colunas padronizadas) com joblib.dump() em app/model/contrato_dados.joblib; joblib adicionado ao requirements.txt; README.md sobrescrito com as 5 seções exigidas pela FIAP (1) Visão Geral do Projeto, 2) Estrutura do Projeto, 3) Instruções de Deploy, 4) Exemplos de Chamadas à API, 5) Etapas do Pipeline de Machine Learning); progress.md atualizado.
 
 ## Vitória
-**Projeto finalizado e pronto para entrega.** Todas as fases do task_plan e exigências do edital foram cumpridas: API POST /predict e POST /upload operacionais com RAG, ChromaDB e Langfuse; serialização do contrato com joblib; README com as 5 seções FIAP; testes e cobertura >80%; diretriz de Risco de Defasagem Escolar (IAN) no System Prompt. O sistema está pronto para avaliação da banca.
+**Projeto finalizado, pronto para entrega e com deploy GCP automatizado.** Todas as fases do task_plan e exigências do edital foram cumpridas: API POST /predict e POST /upload operacionais com RAG, ChromaDB e Langfuse; serialização do contrato com joblib; README com as 5 seções FIAP; testes e cobertura >80%; diretriz de Risco de Defasagem Escolar (IAN) no System Prompt. O sistema está pronto para avaliação da banca.
+
+- [x] Deploy GCP: `.gcloudignore`, `docker-compose.gcp.yml`, `scripts/deploy_gcp.sh`, `DEPLOY.md`; README.md seção 3 atualizada com instruções GCP CLI.
 
 ## Arquivos Criados/Editados
 - `requirements.txt` — dependências do projeto (incl. langchain-core, langchain-chroma, pytest-cov).

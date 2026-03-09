@@ -1,0 +1,49 @@
+# .gcloudignore — Files excluded from gcloud compute scp transfers.
+# Mirrors .gitignore with additional GCP-specific exclusions.
+
+# Secrets — never transfer; injected directly on the VM via SSH
+.env
+*.env
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# ChromaDB binary data — rebuilt from ingestion pipeline on the VM
+app/model/chroma_db/*
+!app/model/chroma_db/.gitkeep
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE and OS artifacts
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+
+# Git history (not needed on VM)
+.git/
+.gitignore
+
+# Cursor workspace (not needed on VM)
+.cursor/
+
+# Large data files — upload via POST /upload after deploy
+*.xlsx
+*.xls
+data/*.csv
+data/*.xlsx
+
+# GCP temp artifacts
+/tmp/

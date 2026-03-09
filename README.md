@@ -19,6 +19,8 @@ Este projeto implementa um **Copiloto Pedagógico e Psicológico** para a Associ
 
 ## 3) Instruções de Deploy (como subir o ambiente)
 
+### Local (desenvolvimento)
+
 1. Configure as variáveis de ambiente (copie `.env.example` para `.env` e preencha `OPENAI_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`).
 2. Na raiz do projeto, execute:
    ```bash
@@ -27,9 +29,20 @@ Este projeto implementa um **Copiloto Pedagógico e Psicológico** para a Associ
 3. Aguarde os healthchecks (Langfuse pode levar ~1–2 min). Serviços e portas:
    - **API (Copiloto):** `http://localhost:8001` (porta 8001 no host; 8000 no container).
    - **Langfuse (observabilidade):** `http://localhost:3000`.
-   - **Chatbot (Streamlit, se aplicável):** porta 8501 (não incluído neste repositório; subir separadamente se houver).
 
-Para produção: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`.
+Para produção local: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`.
+
+### GCP (Google Compute Engine)
+
+Deploy automatizado via CLI — cria VM `e2-standard-2` (2 vCPU, 8 GB RAM, 50 GB SSD) e sobe toda a stack com Docker Compose:
+
+```bash
+export GCP_PROJECT_ID="seu-projeto"
+export OPENAI_API_KEY="sk-..."
+bash scripts/deploy_gcp.sh
+```
+
+Documentação completa, flags e troubleshooting: [`DEPLOY.md`](DEPLOY.md).
 
 ---
 
