@@ -44,19 +44,26 @@ bash scripts/deploy_gcp.sh
 
 Documentação completa, flags e troubleshooting: [`DEPLOY.md`](DEPLOY.md).
 
+**Instância em produção (GCP):**
+
+- **Repositório:** [GitHub](https://github.com/ebueeno/passos_magicos)
+- **API (Swagger):** [http://136.114.106.252:8001/docs](http://136.114.106.252:8001/docs)
+- **Langfuse (observabilidade):** [http://136.114.106.252:3000](http://136.114.106.252:3000)
+- **Vídeo (YouTube):** [https://youtu.be/NVF64caxffc](https://youtu.be/NVF64caxffc)
+
 ---
 
 ## 4) Exemplos de Chamadas à API
+
+### Local (localhost)
 
 **POST /predict** (recomendação por aluno):
 
 ```bash
 curl -X POST "http://localhost:8001/predict" \
   -H "Content-Type: application/json" \
-  -d '{"aluno_id": "123", "pergunta": "Quais indicadores devo priorizar com este aluno?"}'
+  -d '{"aluno_id": "RA-24", "pergunta": "Quais preocupacoes devo priorizar com este aluno?"}'
 ```
-
-Resposta esperada (200): `{"resposta": "...", "documentos_usados": ["..."]}`. A primeira frase de `resposta` contém o **Risco de Defasagem Escolar** (BAIXO/MODERADO/ALTO) com base no IAN.
 
 **POST /upload** (envio de planilha para ingestão):
 
@@ -65,7 +72,28 @@ curl -X POST "http://localhost:8001/upload" \
   -F "file=@planilha.csv"
 ```
 
-Resposta esperada (200): `{"message": "Upload e ingestão concluídos.", "rows_ingested": N}`.
+### Instância em produção (GCP)
+
+Base URL: `http://136.114.106.252:8001`
+
+**POST /predict** (recomendação por aluno):
+
+```bash
+curl -X POST "http://136.114.106.252:8001/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"aluno_id": "RA-24", "pergunta": "Quais preocupacoes devo priorizar com este aluno?"}'
+```
+
+**POST /upload** (envio de planilha para ingestão):
+
+```bash
+curl -X POST "http://136.114.106.252:8001/upload" \
+  -F "file=@planilha.csv"
+```
+
+Resposta esperada (200) para `/predict`: `{"resposta": "...", "documentos_usados": ["..."]}`. A primeira frase de `resposta` contém o **Risco de Defasagem Escolar** (BAIXO/MODERADO/ALTO) com base no IAN.
+
+Resposta esperada (200) para `/upload`: `{"message": "Upload e ingestão concluídos.", "rows_ingested": N}`.
 
 Documentação completa: `API_REFERENCE.md`.
 

@@ -1,0 +1,4 @@
+GitHub repo: https://github.com/ebueeno/passos_magicos
+Swagger docs: http://136.114.106.252:8001/docs
+Langfuse dashboard: http://136.114.106.252:3000
+YouTube: https://youtu.be/NVF64caxffc
